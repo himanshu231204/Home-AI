@@ -31,6 +31,16 @@ export const architecturalStyleSchema = z.enum([
   "INDIAN_MODERN",
 ]);
 
+export const constructionQualitySchema = z.enum(["ECONOMY", "STANDARD", "PREMIUM"]);
+
+export const designPrioritySchema = z.enum([
+  "NATURAL_LIGHT",
+  "PRIVACY",
+  "LARGE_ROOMS",
+  "LOW_COST",
+  "OPEN_SPACES",
+]);
+
 export const projectStatusSchema = z.enum(["DRAFT", "GENERATING", "COMPLETED", "FAILED"]);
 
 export const createProjectSchema = z.object({
@@ -61,18 +71,22 @@ export const plotInputSchema = z.object({
   plotShape: plotShapeSchema.default("RECTANGLE"),
 });
 
-export const houseRequirementsInputSchema = z.object({
+// Base object schema (SPEC.md §38 steps 2-7) kept un-refined so wizard steps
+// can `.pick()` their own field subsets for per-step validation. The
+// cross-field budget check is layered on afterwards via
+// `houseRequirementsInputSchema` below — refined schemas can no longer be
+// `.pick()`-ed by zod.
+const houseRequirementsObjectSchema = z.object({
+  // Step 2 — Family
   floors: z.number().int().min(1).max(6),
-
   bedrooms: z.number().int().min(0).max(20),
   bathrooms: z.number().int().min(0).max(20),
-  kitchens: z.number().int().min(0).max(5),
-
   parkingCars: z.number().int().min(0).max(10),
 
+  // Step 3 — Rooms
+  kitchens: z.number().int().min(0).max(5),
   livingRooms: z.number().int().min(0).max(5),
   diningRooms: z.number().int().min(0).max(5),
-
   pujaRoom: z.boolean().default(false),
   homeOffice: z.boolean().default(false),
   balcony: z.boolean().default(false),
@@ -81,15 +95,82 @@ export const houseRequirementsInputSchema = z.object({
   storeRoom: z.boolean().default(false),
   laundryRoom: z.boolean().default(false),
 
-  vastuEnabled: z.boolean().default(false),
-
-  architecturalStyle: architecturalStyleSchema,
-
+  // Step 4 — Budget
   budgetMin: z.number().positive().nullable().optional(),
   budgetMax: z.number().positive().nullable().optional(),
   currency: z.string().trim().length(3).default("INR"),
+  constructionQuality: constructionQualitySchema.default("STANDARD"),
 
+  // Step 5 — Style
+  architecturalStyle: architecturalStyleSchema,
+
+  // Step 6 — Preferences
+  vastuEnabled: z.boolean().default(false),
+  designPriorities: z.array(designPrioritySchema).max(5).default([]),
+
+  // Step 7 — Additional requirements
   additionalRequirements: z.string().trim().max(2000).default(""),
+});
+
+export const houseRequirementsInputSchema = houseRequirementsObjectSchema.refine(
+  (data) => data.budgetMin == null || data.budgetMax == null || data.budgetMax >= data.budgetMin,
+  {
+    message: "Maximum budget must be greater than or equal to minimum budget",
+    path: ["budgetMax"],
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Per-step schemas (SPEC.md §38) — used by the design wizard to validate one
+// step at a time without requiring fields the user hasn't reached yet.
+// ---------------------------------------------------------------------------
+
+export const familyStepSchema = houseRequirementsObjectSchema.pick({
+  floors: true,
+  bedrooms: true,
+  bathrooms: true,
+  parkingCars: true,
+});
+
+export const roomsStepSchema = houseRequirementsObjectSchema.pick({
+  kitchens: true,
+  livingRooms: true,
+  diningRooms: true,
+  pujaRoom: true,
+  homeOffice: true,
+  balcony: true,
+  terrace: true,
+  utilityRoom: true,
+  storeRoom: true,
+  laundryRoom: true,
+});
+
+export const budgetStepSchema = houseRequirementsObjectSchema
+  .pick({
+    budgetMin: true,
+    budgetMax: true,
+    currency: true,
+    constructionQuality: true,
+  })
+  .refine(
+    (data) => data.budgetMin == null || data.budgetMax == null || data.budgetMax >= data.budgetMin,
+    {
+      message: "Maximum budget must be greater than or equal to minimum budget",
+      path: ["budgetMax"],
+    },
+  );
+
+export const styleStepSchema = houseRequirementsObjectSchema.pick({
+  architecturalStyle: true,
+});
+
+export const preferencesStepSchema = houseRequirementsObjectSchema.pick({
+  vastuEnabled: true,
+  designPriorities: true,
+});
+
+export const additionalRequirementsStepSchema = houseRequirementsObjectSchema.pick({
+  additionalRequirements: true,
 });
 
 // ---------------------------------------------------------------------------
@@ -127,3 +208,10 @@ export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;
 export type PlotInput = z.infer<typeof plotInputSchema>;
 export type HouseRequirementsInput = z.infer<typeof houseRequirementsInputSchema>;
 export type DesignOperationInput = z.infer<typeof designOperationSchema>;
+
+export type FamilyStepInput = z.infer<typeof familyStepSchema>;
+export type RoomsStepInput = z.infer<typeof roomsStepSchema>;
+export type BudgetStepInput = z.infer<typeof budgetStepSchema>;
+export type StyleStepInput = z.infer<typeof styleStepSchema>;
+export type PreferencesStepInput = z.infer<typeof preferencesStepSchema>;
+export type AdditionalRequirementsStepInput = z.infer<typeof additionalRequirementsStepSchema>;

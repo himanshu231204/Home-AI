@@ -1,25 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { updateProjectSchema } from "@/lib/domain/schemas";
+import { getOwnedProject } from "@/lib/server/projects";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-
-async function getOwnedProject(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  userId: string,
-  projectId: string,
-) {
-  // Explicit ownership check: SPEC.md §42 forbids trusting `projectId` from
-  // the URL alone. We compare against the authenticated user's id even
-  // though RLS also enforces this at the database layer — defense in depth.
-  const { data: project } = await supabase
-    .from("projects")
-    .select("*")
-    .eq("id", projectId)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  return project;
-}
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

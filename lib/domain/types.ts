@@ -40,6 +40,20 @@ export type ArchitecturalStyle =
   | "LUXURY"
   | "INDIAN_MODERN";
 
+// Maps to the CostEngine's `quality_level` input (SPEC.md §31).
+export type ConstructionQuality = "ECONOMY" | "STANDARD" | "PREMIUM";
+
+// Step 6 "Preferences" checkboxes (SPEC.md §38), excluding Vastu which has
+// its own dedicated toggle (`vastuEnabled`) and conflict-explanation model
+// (SPEC.md §22). These feed the AI design-intent contract's `priorities`
+// list (SPEC.md §23).
+export type DesignPriority =
+  | "NATURAL_LIGHT"
+  | "PRIVACY"
+  | "LARGE_ROOMS"
+  | "LOW_COST"
+  | "OPEN_SPACES";
+
 export type RoomType =
   | "LIVING"
   | "DINING"
@@ -125,8 +139,11 @@ export interface HouseRequirements {
   laundryRoom: boolean;
 
   vastuEnabled: boolean;
+  designPriorities: DesignPriority[];
 
   architecturalStyle: ArchitecturalStyle;
+
+  constructionQuality: ConstructionQuality;
 
   budgetMin: number | null;
   budgetMax: number | null;
