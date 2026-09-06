@@ -2,10 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import { getRoomConstraint } from "@/lib/config/room-constraints";
 import {
+  budgetStepSchema,
   createProjectSchema,
   designOperationSchema,
+  designPrioritySchema,
+  familyStepSchema,
   houseRequirementsInputSchema,
   plotInputSchema,
+  preferencesStepSchema,
+  styleStepSchema,
 } from "@/lib/domain/schemas";
 
 describe("createProjectSchema", () => {
@@ -95,6 +100,117 @@ describe("houseRequirementsInputSchema", () => {
       architecturalStyle: "MODERN",
     });
     expect(result.success).toBe(false);
+  });
+
+  it("defaults constructionQuality and designPriorities (SPEC.md §38 Step 4/6)", () => {
+    const result = houseRequirementsInputSchema.safeParse({
+      floors: 2,
+      bedrooms: 3,
+      bathrooms: 3,
+      kitchens: 1,
+      parkingCars: 1,
+      livingRooms: 1,
+      diningRooms: 1,
+      architecturalStyle: "MODERN",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.constructionQuality).toBe("STANDARD");
+      expect(result.data.designPriorities).toEqual([]);
+    }
+  });
+
+  it("accepts explicit designPriorities", () => {
+    const result = houseRequirementsInputSchema.safeParse({
+      floors: 1,
+      bedrooms: 2,
+      bathrooms: 2,
+      kitchens: 1,
+      parkingCars: 1,
+      livingRooms: 1,
+      diningRooms: 1,
+      architecturalStyle: "MINIMAL",
+      constructionQuality: "PREMIUM",
+      designPriorities: ["NATURAL_LIGHT", "OPEN_SPACES"],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a designPriority outside the allowed set", () => {
+    const result = houseRequirementsInputSchema.safeParse({
+      floors: 1,
+      bedrooms: 2,
+      bathrooms: 2,
+      kitchens: 1,
+      parkingCars: 1,
+      livingRooms: 1,
+      diningRooms: 1,
+      architecturalStyle: "MINIMAL",
+      designPriorities: ["MARBLE_EVERYTHING"],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a maximum budget below the minimum budget", () => {
+    const result = houseRequirementsInputSchema.safeParse({
+      floors: 1,
+      bedrooms: 2,
+      bathrooms: 2,
+      kitchens: 1,
+      parkingCars: 1,
+      livingRooms: 1,
+      diningRooms: 1,
+      architecturalStyle: "MODERN",
+      budgetMin: 5_000_000,
+      budgetMax: 3_000_000,
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("design wizard step schemas (SPEC.md §38)", () => {
+  it("familyStepSchema validates only step 2 fields", () => {
+    const result = familyStepSchema.safeParse({
+      floors: 2,
+      bedrooms: 3,
+      bathrooms: 2,
+      parkingCars: 1,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("familyStepSchema ignores fields from other steps", () => {
+    const result = familyStepSchema.safeParse({
+      floors: 2,
+      bedrooms: 3,
+      bathrooms: 2,
+      parkingCars: 1,
+      architecturalStyle: "NOT_A_REAL_STYLE",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("budgetStepSchema rejects an inverted budget range", () => {
+    const result = budgetStepSchema.safeParse({
+      budgetMin: 5_000_000,
+      budgetMax: 1_000_000,
+      currency: "INR",
+      constructionQuality: "STANDARD",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("styleStepSchema rejects an unknown architectural style", () => {
+    const result = styleStepSchema.safeParse({ architecturalStyle: "BRUTALIST" });
+    expect(result.success).toBe(false);
+  });
+
+  it("preferencesStepSchema accepts Vastu plus multiple priorities", () => {
+    const result = preferencesStepSchema.safeParse({
+      vastuEnabled: true,
+      designPriorities: designPrioritySchema.options,
+    });
+    expect(result.success).toBe(true);
   });
 });
 
